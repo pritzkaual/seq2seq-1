@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 
 OUTPUT_DIR="/data/workspace/apritzkau/thesis/seq2seq"
-DATA_DIR="/data/workspace/apritzkau/thesis/dataset/train/seoss_txt_lines"
+DATA_DIR="/data/workspace/apritzkau/thesis/dataset/train/seoss_txt_lines/lower"
 
-export VOCAB_SOURCE=${DATA_DIR}/vocab.sources.txt
-export VOCAB_TARGET=${DATA_DIR}/vocab.targets.txt
-export TRAIN_SOURCES=${DATA_DIR}/train/sources.txt
-export TRAIN_TARGETS=${DATA_DIR}/train/targets.txt
-export DEV_SOURCES=${DATA_DIR}/dev/sources.txt
-export DEV_TARGETS=${DATA_DIR}/dev/targets.txt
+export VOCAB_SOURCE=${DATA_DIR}/train_issue_description.10000.freq2.voc
+export VOCAB_TARGET=${DATA_DIR}/train_issue_summary.10000.freq2.voc
+export TRAIN_SOURCES=${DATA_DIR}/train_issue_description.10000.BPE.txt
+export TRAIN_TARGETS=${DATA_DIR}/train_issue_summary.10000.BPE.txt
+export DEV_SOURCES=${DATA_DIR}/test_issue_description.10000.BPE.txt
+export DEV_TARGETS=${DATA_DIR}/test_issue_summary.10000.BPE.txt
 
-export DEV_TARGETS_REF=${OUTPUT_DIR}/nmt_data/toy_reverse/dev/targets.txt
-export TRAIN_STEPS=10000
-export BATCH_SIZE=512
+#export DEV_TARGETS_REF=${OUTPUT_DIR}/nmt_data/toy_reverse/dev/targets.txt
+export TRAIN_STEPS=100000
+export BATCH_SIZE=256
 
-export MODEL_DIR=${OUTPUT_DIR}/nmt_tutorial
+export MODEL_DIR=${OUTPUT_DIR}/seoss/exp2.10000
 
 export CUDA_DEVICE_ORDER="PCI_BUS_ID"
 export CUDA_VISIBLE_DEVICES="0"
@@ -25,8 +25,8 @@ mkdir -p $MODEL_DIR
 
 python -m bin.train \
   --config_paths="
-      ./example_configs/nmt_large.yml,
-      ./example_configs/train_seq2seq.yml,
+      ./configs/seoss_medium.yml,
+      ./configs/train_seq2seq_seoss.yml,
       ./example_configs/text_metrics_bpe.yml" \
   --model_params "
       vocab_source: $VOCAB_SOURCE
@@ -47,6 +47,8 @@ python -m bin.train \
         - $DEV_TARGETS" \
   --gpu_allow_growth=True\
   --gpu_memory_fraction=1.0\
+  --keep_checkpoint_max=10\
+  --save_checkpoints_steps=50\
   --batch_size $BATCH_SIZE \
   --train_steps $TRAIN_STEPS \
   --output_dir $MODEL_DIR

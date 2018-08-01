@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
 
-OUTPUT_DIR="/data/workspace/apritzkau/thesis/seq2seq"
-DATA_DIR="/data/workspace/apritzkau/thesis/dataset/train/seoss_txt_lines"
+OUTPUT_DIR="/data/workspace/apritzkau/thesis/seq2seq/nmt_data/wmt16_de_en"
+DATA_DIR="${OUTPUT_DIR}/data"
 
-export VOCAB_SOURCE=${DATA_DIR}/vocab.sources.txt
-export VOCAB_TARGET=${DATA_DIR}/vocab.targets.txt
-export TRAIN_SOURCES=${DATA_DIR}/train/sources.txt
-export TRAIN_TARGETS=${DATA_DIR}/train/targets.txt
-export DEV_SOURCES=${DATA_DIR}/dev/sources.txt
-export DEV_TARGETS=${DATA_DIR}/dev/targets.txt
+export MODEL_DIR=${OUTPUT_DIR}/training/exp1.large
 
-export DEV_TARGETS_REF=${OUTPUT_DIR}/nmt_data/toy_reverse/dev/targets.txt
-export TRAIN_STEPS=10000
-export BATCH_SIZE=512
 
-export MODEL_DIR=${OUTPUT_DIR}/nmt_tutorial
+export VOCAB_SOURCE=${DATA_DIR}/vocab.bpe.32000
+export VOCAB_TARGET=${DATA_DIR}/vocab.bpe.32000
+export TRAIN_SOURCES=${DATA_DIR}/train.tok.clean.bpe.32000.en
+export TRAIN_TARGETS=${DATA_DIR}/train.tok.clean.bpe.32000.de
+export DEV_SOURCES=${DATA_DIR}/newstest2013.tok.bpe.32000.en
+export DEV_TARGETS=${DATA_DIR}/newstest2013.tok.bpe.32000.de
+
+export DEV_TARGETS_REF=${DATA_DIR}/newstest2013.tok.de
+export TRAIN_STEPS=1000000
+
+export BATCH_SIZE=128
+
+
 
 export CUDA_DEVICE_ORDER="PCI_BUS_ID"
-export CUDA_VISIBLE_DEVICES="0"
+export CUDA_VISIBLE_DEVICES="1"
 
 # Start training
 
