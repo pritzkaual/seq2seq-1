@@ -23,6 +23,7 @@ from __future__ import unicode_literals
 
 import os
 import tempfile
+import logging
 
 import yaml
 
@@ -88,6 +89,14 @@ tf.flags.DEFINE_integer("train_steps", None,
 tf.flags.DEFINE_integer("eval_every_n_steps", 1000,
                         "Run evaluation on validation data every N steps.")
 
+"""# Specifig training parameters
+tf.flags.DEFINE_("model_params", {'optimizer.learning_rate': 0.0001,
+                                       'optimizer.name': 'Adam'},
+                      "Specific model parameters.")"""
+"""
+tf.flags.DEFINE_float('learning_rate', 0.0001,
+                      "Optimizer's learning rate.")"""
+
 # RunConfig Flags
 tf.flags.DEFINE_integer("tf_random_seed", None,
                         """Random seed for TensorFlow initializers. Setting
@@ -98,11 +107,11 @@ tf.flags.DEFINE_integer("save_checkpoints_secs", None,
 tf.flags.DEFINE_integer("save_checkpoints_steps", None,
                         """Save checkpoints every this many steps.
                         Can not be specified with save_checkpoints_secs.""")
-tf.flags.DEFINE_integer("keep_checkpoint_max", 5,
+tf.flags.DEFINE_integer("keep_checkpoint_max", 25,
                         """Maximum number of recent checkpoint files to keep.
                         As new files are created, older files are deleted.
                         If None or 0, all checkpoint files are kept.""")
-tf.flags.DEFINE_integer("keep_checkpoint_every_n_hours", 4,
+tf.flags.DEFINE_integer("keep_checkpoint_every_n_hours", 10000,
                         """In addition to keeping the most recent checkpoint
                         files, keep one checkpoint file for every N hours of
                         training.""")
@@ -216,8 +225,33 @@ def create_experiment(output_dir):
   return experiment
 
 
+def _dump_flags():
+  flags = sorted(tf.flags.FLAGS.__flags)
+  for key in flags:
+    value = tf.flags.FLAGS.__getattr__(key)
+    tf.logging.info("%30s : %s" % (key, str(value)))
+
+
+def add_file_logger(folder):
+  
+  if not os.path.isdir(folder):
+    os.makedirs(folder)
+  tf.logging.set_verbosity(tf.logging.INFO)
+  log = logging.getLogger('tensorflow')
+  formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+  fh = logging.FileHandler(os.path.join(folder, 'tensorflow.log'))
+  fh.setLevel(logging.DEBUG)
+  fh.setFormatter(formatter)
+  log.addHandler(fh)
+
+
 def main(_argv):
   """The entrypoint for the script"""
+  if not FLAGS.output_dir:
+    FLAGS.output_dir = tempfile.mkdtemp()
+  
+  add_file_logger(FLAGS.output_dir)
+  _dump_flags()
 
   # Parse YAML FLAGS
   FLAGS.hooks = _maybe_load_yaml(FLAGS.hooks)
@@ -237,6 +271,16 @@ def main(_argv):
       tf.logging.info("Loading config from %s", config_path)
       with gfile.GFile(config_path.strip()) as config_file:
         config_flags = yaml.load(config_file)
+        """
+        # Update config_flags
+        if FLAGS.learning_rate:
+          if "model_params" in config_flags:
+            config_flags["model_params"].update({'optimizer.learning_rate': FLAGS.learning_rate})
+        
+        if FLAGS.optimizer_name:
+          if "model_params" in config_flags:
+            config_flags["model_params"].update({'optimizer.name': FLAGS.learning_rate})"""
+          
         final_config = _deep_merge_dict(final_config, config_flags)
 
   tf.logging.info("Final Config:\n%s", yaml.dump(final_config))
@@ -257,21 +301,18 @@ def main(_argv):
     tf.logging.info("Setting save_checkpoints_secs to %d",
                     FLAGS.save_checkpoints_secs)
 
-  if not FLAGS.output_dir:
-    FLAGS.output_dir = tempfile.mkdtemp()
 
   if not FLAGS.input_pipeline_train:
     raise ValueError("You must specify input_pipeline_train")
 
   if not FLAGS.input_pipeline_dev:
     raise ValueError("You must specify input_pipeline_dev")
-
+  
   learn_runner.run(
       experiment_fn=create_experiment,
       output_dir=FLAGS.output_dir,
       schedule=FLAGS.schedule)
-
+  
 
 if __name__ == "__main__":
-  tf.logging.set_verbosity(tf.logging.INFO)
   tf.app.run()
