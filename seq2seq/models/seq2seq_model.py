@@ -57,6 +57,8 @@ class Seq2SeqModel(ModelBase):
         "embedding.dim": 100,
         "embedding.init_scale": 0.04,
         "embedding.share": False,
+        "embedding.source_embedding": None,
+        "embedding.target_embedding": None,
         "inference.beam_search.beam_width": 0,
         "inference.beam_search.length_penalty_weight": 0.0,
         "inference.beam_search.choose_successors_fn": "choose_top_k",
@@ -122,12 +124,77 @@ class Seq2SeqModel(ModelBase):
     features.
     """
     return tf.shape(features["source_ids"])[0]
+  
+  
+  def load_embedding(self, filename, vocab_words, vocab_to_id):
+    from tensorflow import gfile
+    import numpy as np
+    
+    if not gfile.Exists(filename):
+      raise ValueError("Embedding-File does not exist: {}".format(filename))
 
+    embeddings_index = dict()
+    
+    tf.logging.info("Load embedding from '{}'".format(filename))
+    with gfile.GFile(filename) as file:
+      
+      for line in file:
+        values = line.split()
+        word = values[0]
+        
+        coefs = np.asarray(values[1:], dtype='float32')
+        embeddings_index[word] = coefs
+        
+    # Create empty embedding_matrix and fill with vectors
+    tf.logging.info("Create and fill embedding_matrix with vocab words and corresponding word vectors")
+
+    embedding_matrix = np.zeros([self.source_vocab_info.total_size, self.params["embedding.dim"]], dtype=np.float32)
+
+    # Add special vocab to embedding_matrix
+    tf.logging.info("Add special vocab to embedding_matrix")
+  
+    special_vocab = vocab.get_special_vocab(self.source_vocab_info.vocab_size)
+    tf.logging.info(special_vocab.UNK)
+    tf.logging.info(special_vocab.SEQUENCE_START)
+    tf.logging.info(special_vocab.SEQUENCE_END)
+    
+    embedding_matrix[special_vocab.UNK] = np.zeros(self.params["embedding.dim"], dtype=np.float32)
+    embedding_matrix[special_vocab.SEQUENCE_START] = np.zeros(self.params["embedding.dim"], dtype=np.float32) \
+                                                     - np.ones(self.params["embedding.dim"], dtype=np.float32)
+    embedding_matrix[special_vocab.SEQUENCE_END] = np.ones(self.params["embedding.dim"], dtype=np.float32)
+    
+    tf.logging.info("Add vocab words to embedding_matrix")
+    tmp_word_counter = 0
+    
+    for idx, word in enumerate(vocab_words):
+      vector = embeddings_index.get(word)
+      
+      if vector is not None:
+        embedding_matrix[idx] = vector
+        tmp_word_counter += 1
+      #else:
+      #  tf.logging.warning("Word {}-'{}' is not in embedding_index.".format(idx, word))
+
+    tf.logging.info("Add {:.2f}  {}/{} words to embedding_matrix.".format(tmp_word_counter/len(vocab_words),
+                                                                          tmp_word_counter, len(vocab_words)))
+    
+    return tf.get_variable(
+        name="W",
+        shape=[self.source_vocab_info.total_size, self.params["embedding.dim"]],
+        initializer=tf.constant_initializer(embedding_matrix))
+  
   @property
   @templatemethod("source_embedding")
   def source_embedding(self):
     """Returns the embedding used for the source sequence.
     """
+    if self.params["embedding.source_embedding"] is not None:
+      vocab_tables = graph_utils.get_dict_from_collection("vocab_tables")
+      source_vocab_to_id = vocab_tables["source_vocab_to_id"]
+      source_vocab = vocab_tables["source_vocab"]
+      
+      return self.load_embedding(self.params["embedding.source_embedding"], source_vocab, source_vocab_to_id)
+    
     return tf.get_variable(
         name="W",
         shape=[self.source_vocab_info.total_size, self.params["embedding.dim"]],
@@ -140,8 +207,17 @@ class Seq2SeqModel(ModelBase):
   def target_embedding(self):
     """Returns the embedding used for the target sequence.
     """
+    
     if self.params["embedding.share"]:
       return self.source_embedding
+    
+    if self.params["embedding.target_embedding"] is not None:
+      vocab_tables = graph_utils.get_dict_from_collection("vocab_tables")
+      target_vocab_to_id = vocab_tables["target_vocab_to_id"]
+      target_vocab = vocab_tables["target_vocab"]
+      
+      return self.load_embedding(self.params["embedding.target_embedding"], target_vocab, target_vocab_to_id)
+    
     return tf.get_variable(
         name="W",
         shape=[self.target_vocab_info.total_size, self.params["embedding.dim"]],
@@ -195,12 +271,12 @@ class Seq2SeqModel(ModelBase):
     """
 
     # Create vocabulary lookup for source
-    source_vocab_to_id, source_id_to_vocab, source_word_to_count, _ = \
-      vocab.create_vocabulary_lookup_table(self.source_vocab_info.path)
+    source_vocab_to_id, source_id_to_vocab, source_word_to_count, _, source_vocab = \
+      vocab.create_vocabulary_lookup_table(self.source_vocab_info.path, return_vocab=True)
 
     # Create vocabulary look for target
-    target_vocab_to_id, target_id_to_vocab, target_word_to_count, _ = \
-      vocab.create_vocabulary_lookup_table(self.target_vocab_info.path)
+    target_vocab_to_id, target_id_to_vocab, target_word_to_count, _, target_vocab = \
+      vocab.create_vocabulary_lookup_table(self.target_vocab_info.path, return_vocab=True)
 
     # Add vocab tables to graph colection so that we can access them in
     # other places.
@@ -208,9 +284,11 @@ class Seq2SeqModel(ModelBase):
         "source_vocab_to_id": source_vocab_to_id,
         "source_id_to_vocab": source_id_to_vocab,
         "source_word_to_count": source_word_to_count,
+        "source_vocab": source_vocab,
         "target_vocab_to_id": target_vocab_to_id,
         "target_id_to_vocab": target_id_to_vocab,
-        "target_word_to_count": target_word_to_count
+        "target_word_to_count": target_word_to_count,
+        "target_vocab": target_vocab
     }, "vocab_tables")
 
     # Slice source to max_len

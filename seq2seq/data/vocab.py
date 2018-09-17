@@ -60,7 +60,7 @@ def get_special_vocab(vocabulary_size):
   return SpecialVocab(*range(vocabulary_size, vocabulary_size + 3))
 
 
-def create_vocabulary_lookup_table(filename, default_value=None):
+def create_vocabulary_lookup_table(filename, default_value=None, return_vocab=False):
   """Creates a lookup table for a vocabulary file.
 
   Args:
@@ -120,5 +120,8 @@ def create_vocabulary_lookup_table(filename, default_value=None):
   word_to_count_init = tf.contrib.lookup.KeyValueTensorInitializer(
       vocab_tensor, count_tensor, tf.string, tf.float32)
   word_to_count_table = tf.contrib.lookup.HashTable(word_to_count_init, -1)
-
-  return vocab_to_id_table, id_to_vocab_table, word_to_count_table, vocab_size
+  
+  if return_vocab:
+    return vocab_to_id_table, id_to_vocab_table, word_to_count_table, vocab_size, vocab
+  else:
+    return vocab_to_id_table, id_to_vocab_table, word_to_count_table, vocab_size

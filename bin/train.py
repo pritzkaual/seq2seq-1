@@ -93,9 +93,15 @@ tf.flags.DEFINE_integer("eval_every_n_steps", 1000,
 tf.flags.DEFINE_("model_params", {'optimizer.learning_rate': 0.0001,
                                        'optimizer.name': 'Adam'},
                       "Specific model parameters.")"""
-"""
+
 tf.flags.DEFINE_float('learning_rate', 0.0001,
-                      "Optimizer's learning rate.")"""
+                      "Optimizer's learning rate.")
+
+tf.flags.DEFINE_string('source_embedding', None,
+                      "Path to source embedding.")
+
+tf.flags.DEFINE_string('target_embedding', None,
+                      "Path to target embedding.")
 
 # RunConfig Flags
 tf.flags.DEFINE_integer("tf_random_seed", None,
@@ -271,12 +277,20 @@ def main(_argv):
       tf.logging.info("Loading config from %s", config_path)
       with gfile.GFile(config_path.strip()) as config_file:
         config_flags = yaml.load(config_file)
-        """
+        
         # Update config_flags
         if FLAGS.learning_rate:
           if "model_params" in config_flags:
             config_flags["model_params"].update({'optimizer.learning_rate': FLAGS.learning_rate})
         
+        if FLAGS.source_embedding:
+          if "model_params" in config_flags:
+            config_flags["model_params"].update({'embedding.source_embedding': FLAGS.source_embedding})
+        
+        if FLAGS.target_embedding:
+          if "model_params" in config_flags:
+            config_flags["model_params"].update({'embedding.target_embedding': FLAGS.target_embedding})
+        """
         if FLAGS.optimizer_name:
           if "model_params" in config_flags:
             config_flags["model_params"].update({'optimizer.name': FLAGS.learning_rate})"""
